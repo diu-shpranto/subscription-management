@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subscription Management</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root {
+    --primary: #4361ee;
+    --secondary: #3f37c9;
+    --success: #4cc9f0;
+    --light: #f8f9fa;
+    --dark: #212529;
+}
+body {
+    background-color: #f5f7fb;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+.navbar { background: linear-gradient(120deg, var(--primary), var(--secondary)); }
+.card {
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    transition: transform 0.3s;
+    margin-bottom: 20px;
+}
+.card:hover { transform: translateY(-5px); }
+.btn-primary { background-color: var(--primary); border-color: var(--primary); }
+.btn-primary:hover { background-color: var(--secondary); border-color: var(--secondary); }
+.subscription-card { border-left: 4px solid var(--primary); }
+.tag-normal { background-color: #4cc9f0; color: white; }
+.tag-manual { background-color: #f72585; color: white; }
+.search-container { position: relative; }
+.search-results {
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: white; z-index: 1000; max-height: 300px; overflow-y: auto;
+    border-radius: 0 0 5px 5px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); display: none;
+}
+.renew-count { font-size: 14px; font-weight: bold; color: var(--primary); }
+.member-list { list-style-type: none; padding-left: 0; }
+.member-list li { padding: 5px 0; border-bottom: 1px solid #eee; }
+.member-list li:last-child { border-bottom: none; }
+.form-section {
+    background-color: white; padding: 20px; border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08); margin-bottom: 20px;
+}
+.status-badge { font-size: 0.8rem; padding: 5px 10px; border-radius: 30px; }
+.active-status { background-color: #38b000; color: white; }
+.expired-status { background-color: #e63946; color: white; }
+.soon-expire { background-color: #ff9e00; color: white; }
+.logo { font-weight: 700; font-size: 1.5rem; }
+.hero-section {
+    background: linear-gradient(120deg, var(--primary), var(--secondary));
+    color: white; padding: 30px 0; border-radius: 10px; margin-bottom: 30px;
+}
+.feature-icon { font-size: 2rem; color: var(--primary); margin-bottom: 15px; }
+.progress { height: 8px; border-radius: 5px; margin-bottom: 10px; }
+.highlight-card { 
+    box-shadow: 0 0 15px 5px rgba(247, 37, 133, 0.5) !important;
+    transition: box-shadow 0.5s ease;
+}
+.editing { background-color: #f0f7ff; }
+.edit-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 15px;
+    gap: 10px;
+}
+.is-invalid { border-color: #dc3545 !important; }
+.invalid-feedback { display: block; color: #dc3545; font-size: 0.875em; }
+@media (max-width: 768px) {
+    .search-container { width: 100% !important; margin-top: 10px; }
+    .navbar .d-flex { flex-direction: column; width: 100%; }
+    .navbar .btn { margin: 5px 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark">
+<div class="container">
+    <a class="navbar-brand logo" href="#"><i class="fas fa-users-cog me-2"></i>Family Subscription</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarContent">
+        <div class="search-container ms-auto me-4 my-2 my-lg-0" style="width: 300px;">
+            <input type="text" class="form-control" id="searchInput" placeholder="Search email...">
+            <div class="search-results" id="searchResults"></div>
+        </div>
+        <div>
+            <button class="btn btn-outline-light me-2" id="exportBtn"><i class="fas fa-file-export me-1"></i>Export</button>
+            <button class="btn btn-light" id="importBtn"><i class="fas fa-file-import me-1"></i>Import</button>
+            <input type="file" id="importFile" style="display:none;" accept=".json">
+        </div>
+    </div>
+</div>
+</nav>
+
+<div class="container mb-5">
+<div class="hero-section text-center">
+    <h1 class="display-5 fw-bold">Subscription Management</h1>
+</div>
+
+<div class="form-section" id="formSection">
+<h3 class="mb-4"><i class="fas fa-plus-circle me-2"></i><span id="formTitle">Add New Family Group</span></h3>
+<form id="familyForm">
+<div class="row">
+<div class="col-md-6 mb-3">
+<label for="managerEmail" class="form-label">Manager Email</label>
+<input type="email" class="form-control" id="managerEmail" required>
+<div class="invalid-feedback" id="managerEmailFeedback"></div>
+</div>
+<div class="col-md-3 mb-3">
+<label for="startDate" class="form-label">Start Date</label>
+<input type="datetime-local" class="form-control" id="startDate" required>
+<div class="invalid-feedback" id="startDateFeedback"></div>
+</div>
+<div class="col-md-3 mb-3">
+<label for="endDate" class="form-label">End Date</label>
+<input type="datetime-local" class="form-control" id="endDate" required>
+<div class="invalid-feedback" id="endDateFeedback"></div>
+</div>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Member Emails (max 5)</label>
+<div id="memberEmails">
+<div class="input-group mb-2">
+<input type="email" class="form-control member-email" placeholder="Member email">
+<button type="button" class="btn btn-outline-danger remove-member-btn" style="display:none;"><i class="fas fa-times"></i></button>
+</div>
+</div>
+<div class="invalid-feedback" id="membersFeedback"></div>
+<button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addMemberBtn"><i class="fas fa-plus me-1"></i>Add Member</button>
+</div>
+
+<div class="row">
+<div class="col-md-6 mb-3">
+<label class="form-label">Tag Type</label>
+<div>
+<div class="form-check form-check-inline">
+<input class="form-check-input" type="radio" name="tagType" id="tagNormal" value="normal" checked>
+<label class="form-check-label" for="tagNormal">Normal</label>
+</div>
+<div class="form-check form-check-inline">
+<input class="form-check-input" type="radio" name="tagType" id="tagManual" value="manual">
+<label class="form-check-label" for="tagManual">Manual</label>
+</div>
+</div>
+</div>
+<div class="col-md-6 mb-3">
+<label for="renewCount" class="form-label">Renew Count</label>
+<input type="number" class="form-control" id="renewCount" min="0" value="0" required>
+</div>
+</div>
+
+<div class="edit-controls" id="editControls" style="display: none;">
+    <button type="button" class="btn btn-secondary" id="cancelEditBtn">Cancel Edit</button>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Update</button>
+</div>
+
+<div id="addControls">
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save</button>
+    <button type="reset" class="btn btn-outline-secondary ms-2" id="resetBtn"><i class="fas fa-times me-1"></i>Clear</button>
+</div>
+</form>
+</div>
+
+<h3 class="mb-4"><i class="fas fa-list me-2"></i>Family Groups List</h3>
+<div id="familyList" class="row"></div>
+</div>
+
+<footer class="bg-dark text-white text-center py-4 mt-5">
+<p class="mb-0">© 2025 Family Subscription Manager | All Rights Reserved</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+let families = JSON.parse(localStorage.getItem('families')) || [];
+let currentEditId = null;
+
+const familyForm = document.getElementById('familyForm');
+const familyList = document.getElementById('familyList');
+const addMemberBtn = document.getElementById('addMemberBtn');
+const memberEmails = document.getElementById('memberEmails');
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
+const formTitle = document.getElementById('formTitle');
+const editControls = document.getElementById('editControls');
+const addControls = document.getElementById('addControls');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+// Add Member
+addMemberBtn.addEventListener('click', function() {
+    if (document.querySelectorAll('.member-email').length < 5) {
+        const newInput = document.createElement('div');
+        newInput.className = 'input-group mb-2';
+        newInput.innerHTML = `
+            <input type="email" class="form-control member-email" placeholder="Member email">
+            <button type="button" class="btn btn-outline-danger remove-member-btn"><i class="fas fa-times"></i></button>
+        `;
+        memberEmails.appendChild(newInput);
+        newInput.querySelector('.remove-member-btn').addEventListener('click', function() { 
+            newInput.remove(); 
+            validateMembers();
+        });
+        
+        // Add validation on input
+        newInput.querySelector('.member-email').addEventListener('blur', function() {
+            validateEmail(this);
+            validateMembers();
+        });
+    } else {
+        alert('Maximum 5 members allowed.');
+    }
+});
+
+// Reset Member Inputs
+function resetMemberInputs() {
+    memberEmails.innerHTML = `<div class="input-group mb-2">
+        <input type="email" class="form-control member-email" placeholder="Member email">
+        <button type="button" class="btn btn-outline-danger remove-member-btn" style="display:none;"><i class="fas fa-times"></i></button>
+    </div>`;
+    
+    // Add validation to the first member input
+    const firstInput = memberEmails.querySelector('.member-email');
+    if (firstInput) {
+        firstInput.addEventListener('blur', function() {
+            validateEmail(this);
+            validateMembers();
+        });
+    }
+}
+
+// Email validation function
+function validateEmail(input) {
+    const email = input.value.trim();
+    const feedbackEl = document.getElementById('membersFeedback');
+    
+    if (email === '') {
+        input.classList.remove('is-invalid');
+        return true;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        input.classList.add('is-invalid');
+        return false;
+    }
+    
+    // Check for duplicate emails in the form
+    const allEmails = Array.from(document.querySelectorAll('.member-email')).map(i => i.value.trim());
+    const managerEmail = document.getElementById('managerEmail').value.trim();
+    const duplicateCount = allEmails.filter(e => e === email).length;
+    
+    if (email === managerEmail) {
+        feedbackEl.textContent = 'Member email cannot be the same as manager email';
+        input.classList.add('is-invalid');
+        return false;
+    }
+    
+    if (duplicateCount > 1) {
+        feedbackEl.textContent = 'Duplicate member emails are not allowed';
+        input.classList.add('is-invalid');
+        return false;
+    }
+    
+    input.classList.remove('is-invalid');
+    return true;
+}
+
+// Members validation
+function validateMembers() {
+    const members = Array.from(document.querySelectorAll('.member-email'))
+        .map(input => input.value.trim())
+        .filter(email => email !== '');
+    
+    const feedbackEl = document.getElementById('membersFeedback');
+    
+    if (members.length === 0) {
+        feedbackEl.textContent = 'At least one member is required';
+        return false;
+    }
+    
+    // Check for duplicates
+    const uniqueMembers = new Set(members);
+    if (uniqueMembers.size !== members.length) {
+        feedbackEl.textContent = 'Duplicate member emails are not allowed';
+        return false;
+    }
+    
+    // Check if any member email matches manager email
+    const managerEmail = document.getElementById('managerEmail').value.trim();
+    if (members.includes(managerEmail)) {
+        feedbackEl.textContent = 'Member email cannot be the same as manager email';
+        return false;
+    }
+    
+    feedbackEl.textContent = '';
+    return true;
+}
+
+// Date validation
+function validateDates() {
+    const startDate = new Date(document.getElementById('startDate').value);
+    const endDate = new Date(document.getElementById('endDate').value);
+    const startFeedback = document.getElementById('startDateFeedback');
+    const endFeedback = document.getElementById('endDateFeedback');
+    
+    let isValid = true;
+    
+    if (isNaN(startDate.getTime())) {
+        startFeedback.textContent = 'Please enter a valid start date';
+        isValid = false;
+    } else {
+        startFeedback.textContent = '';
+    }
+    
+    if (isNaN(endDate.getTime())) {
+        endFeedback.textContent = 'Please enter a valid end date';
+        isValid = false;
+    } else {
+        endFeedback.textContent = '';
+    }
+    
+    if (isValid && startDate >= endDate) {
+        endFeedback.textContent = 'End date must be after start date';
+        isValid = false;
+    }
+    
+    return isValid;
+}
+
+// Manager email validation
+function validateManagerEmail() {
+    const managerEmail = document.getElementById('managerEmail').value.trim();
+    const feedbackEl = document.getElementById('managerEmailFeedback');
+    
+    if (managerEmail === '') {
+        feedbackEl.textContent = 'Manager email is required';
+        return false;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(managerEmail)) {
+        feedbackEl.textContent = 'Please enter a valid email address';
+        return false;
+    }
+    
+    // Check if manager email is used as member in the form
+    const memberEmails = Array.from(document.querySelectorAll('.member-email'))
+        .map(input => input.value.trim())
+        .filter(email => email !== '');
+    
+    if (memberEmails.includes(managerEmail)) {
+        feedbackEl.textContent = 'Manager email cannot be used as member email';
+        return false;
+    }
+    
+    feedbackEl.textContent = '';
+    return true;
+}
+
+// Reset form to add mode
+function resetToAddMode() {
+    currentEditId = null;
+    formTitle.textContent = 'Add New Family Group';
+    editControls.style.display = 'none';
+    addControls.style.display = 'block';
+    document.getElementById('formSection').classList.remove('editing');
+    familyForm.reset();
+    resetMemberInputs();
+    clearValidation();
+}
+
+// Clear validation messages
+function clearValidation() {
+    document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+}
+
+// Save Form
+familyForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Validate form
+    const isManagerValid = validateManagerEmail();
+    const isDatesValid = validateDates();
+    const isMembersValid = validateMembers();
+    
+    // Validate individual email fields
+    let allEmailsValid = true;
+    document.querySelectorAll('.member-email').forEach(input => {
+        if (!validateEmail(input)) allEmailsValid = false;
+    });
+    
+    if (!isManagerValid || !isDatesValid || !isMembersValid || !allEmailsValid) {
+        return;
+    }
+    
+    const managerEmail = document.getElementById('managerEmail').value.trim();
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    const tagType = document.querySelector('input[name="tagType"]:checked').value;
+    const renewCount = parseInt(document.getElementById('renewCount').value);
+    
+    const members = [];
+    document.querySelectorAll('.member-email').forEach(input => { 
+        if(input.value.trim() !== '') members.push(input.value.trim()); 
+    });
+    
+    if (currentEditId) {
+        // Update existing family
+        const index = families.findIndex(f => f.id === currentEditId);
+        if (index !== -1) {
+            families[index] = { 
+                ...families[index], 
+                managerEmail, 
+                startDate, 
+                endDate, 
+                members, 
+                tagType, 
+                renewCount 
+            };
+            alert('Family group updated successfully!');
+        }
+    } else {
+        // Add new family
+        const newFamily = { 
+            id: Date.now(), 
+            managerEmail, 
+            startDate, 
+            endDate, 
+            members, 
+            tagType, 
+            renewCount, 
+            createdAt: new Date().toISOString() 
+        };
+        families.push(newFamily);
+        alert('Family group saved successfully!');
+    }
+    
+    localStorage.setItem('families', JSON.stringify(families));
+    renderFamilyList();
+    resetToAddMode();
+});
+
+// Cancel edit
+cancelEditBtn.addEventListener('click', resetToAddMode);
+
+// Reset form
+resetBtn.addEventListener('click', function() {
+    clearValidation();
+    resetToAddMode();
+});
+
+// Render List
+function renderFamilyList() {
+    familyList.innerHTML = '';
+    if(families.length===0){ 
+        familyList.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No family groups added</h4>
+                <p class="text-muted">Use the form above to add a new family group</p>
+            </div>
+        `; 
+        return; 
+    }
+    
+    families.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    families.forEach(family => {
+        const startDate = new Date(family.startDate);
+        const endDate = new Date(family.endDate);
+        const now = new Date();
+        let status = 'active', statusText = 'Active', statusClass = 'active-status';
+        
+        if(now > endDate) {
+            status = 'expired'; 
+            statusText = 'Expired'; 
+            statusClass = 'expired-status';
+        } else if((endDate - now) < 7 * 24 * 60 * 60 * 1000) {
+            status = 'soon'; 
+            statusText = 'Ending Soon'; 
+            statusClass = 'soon-expire';
+        }
+        
+        const card = document.createElement('div');
+        card.className = 'col-md-6 col-lg-4';
+        card.innerHTML = `
+        <div class="card subscription-card" data-id="${family.id}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                    <span class="badge ${family.tagType==='normal'?'tag-normal':'tag-manual'}">${family.tagType==='normal'?'Normal':'Manual'}</span>
+                </div>
+                <h5 class="card-title">${family.managerEmail}</h5>
+                <small class="text-muted">Start Date:</small>
+                <p class="mb-1">${formatDate(startDate)}</p>
+                <small class="text-muted">End Date:</small>
+                <p class="mb-1">${formatDate(endDate)}</p>
+                <div class="mb-2">
+                    <small class="text-muted">Members (${family.members.length}):</small>
+                    <ul class="member-list">${family.members.map(m => `<li>${m}</li>`).join('')}</ul>
+                </div>
+                <div class="progress mb-2">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width:${getProgressPercent(startDate,endDate)}%"></div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="renew-count">Renew: ${family.renewCount} times</span>
+                    <div>
+                        <button class="btn btn-sm btn-outline-success renew-btn" data-id="${family.id}"><i class="fas fa-sync-alt"></i></button>
+                        <button class="btn btn-sm btn-outline-primary edit-btn" data-id="${family.id}"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${family.id}"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <small class="text-muted countdown" data-id="${family.id}"></small>
+            </div>
+        </div>`;
+        familyList.appendChild(card);
+    });
+    
+    attachEditDeleteEvents();
+    attachRenewEvents();
+}
+
+// Progress %
+function getProgressPercent(start, end) { 
+    const now = new Date(); 
+    if(now <= start) return 0; 
+    if(now >= end) return 100; 
+    return ((now - start) / (end - start)) * 100; 
+}
+
+// Format datetime for input field
+function formatDateTimeForInput(date) {
+    if (!(date instanceof Date)) {
+        date = new Date(date);
+    }
+    
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Countdown update
+setInterval(() => {
+    document.querySelectorAll('.countdown').forEach(el => {
+        const family = families.find(f => f.id == el.dataset.id);
+        if(family) {
+            const now = new Date(); 
+            const end = new Date(family.endDate);
+            let diff = end - now;
+            
+            if(diff < 0) { 
+                el.textContent = 'Expired'; 
+                return; 
+            }
+            
+            const d = Math.floor(diff / 1000 / 60 / 60 / 24); 
+            diff -= d * 24 * 60 * 60 * 1000;
+            const h = Math.floor(diff / 1000 / 60 / 60); 
+            diff -= h * 60 * 60 * 1000;
+            const m = Math.floor(diff / 1000 / 60); 
+            diff -= m * 60 * 1000;
+            const s = Math.floor(diff / 1000);
+            
+            el.textContent = `Time left: ${d}d ${h}h ${m}m ${s}s`;
+        }
+    });
+}, 1000);
+
+// Edit/Delete events
+function attachEditDeleteEvents() {
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            editFamily(id);
+        });
+    });
+    
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            deleteFamily(id);
+        });
+    });
+}
+
+// Renew events
+function attachRenewEvents() {
+    document.querySelectorAll('.renew-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            renewFamily(id);
+        });
+    });
+}
+
+// Renew family subscription
+function renewFamily(id) {
+    const family = families.find(f => f.id === id);
+    if (!family) return;
+    
+    const extensionDays = parseInt(prompt("How many days would you like to extend this subscription?", "30"));
+    
+    if (isNaN(extensionDays) || extensionDays <= 0) {
+        alert("Please enter a valid number of days.");
+        return;
+    }
+    
+    const endDate = new Date(family.endDate);
+    endDate.setDate(endDate.getDate() + extensionDays);
+    
+    family.endDate = endDate.toISOString().replace('Z', '').split('.')[0];
+    family.renewCount += 1;
+    
+    localStorage.setItem('families', JSON.stringify(families));
+    renderFamilyList();
+    
+    alert(`Subscription renewed successfully! New end date: ${formatDate(endDate)}`);
+}
+
+// Edit family
+function editFamily(id) {
+    const family = families.find(f => f.id === id);
+    if (!family) return;
+    
+    currentEditId = id;
+    formTitle.textContent = 'Edit Family Group';
+    editControls.style.display = 'flex';
+    addControls.style.display = 'none';
+    document.getElementById('formSection').classList.add('editing');
+    
+    document.getElementById('managerEmail').value = family.managerEmail;
+    document.getElementById('startDate').value = formatDateTimeForInput(family.startDate);
+    document.getElementById('endDate').value = formatDateTimeForInput(family.endDate);
+    document.getElementById('renewCount').value = family.renewCount;
+    
+    if(family.tagType === 'normal') {
+        document.getElementById('tagNormal').checked = true;
+    } else {
+        document.getElementById('tagManual').checked = true;
+    }
+    
+    resetMemberInputs();
+    const container = document.getElementById('memberEmails');
+    container.innerHTML = '';
+    
+    family.members.forEach(email => {
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="email" class="form-control member-email" value="${email}" placeholder="Member email">
+            <button type="button" class="btn btn-outline-danger remove-member-btn"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(div);
+        
+        div.querySelector('.remove-member-btn').addEventListener('click', () => {
+            div.remove();
+            validateMembers();
+        });
+        
+        // Add validation to the new input
+        div.querySelector('.member-email').addEventListener('blur', function() {
+            validateEmail(this);
+            validateMembers();
+        });
+    });
+    
+    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Delete family
+function deleteFamily(id, confirmDelete = true) {
+    if(confirmDelete && !confirm('Are you sure you want to delete this family group?')) return;
+    
+    families = families.filter(f => f.id !== id);
+    localStorage.setItem('families', JSON.stringify(families));
+    renderFamilyList();
+}
+
+// Search
+searchInput.addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    if(query === '') { 
+        searchResults.style.display = 'none'; 
+        return; 
+    }
+    
+    const results = [];
+    families.forEach(family => {
+        if(family.managerEmail.toLowerCase().includes(query)) {
+            results.push({
+                type: 'Manager', 
+                email: family.managerEmail, 
+                familyId: family.id,
+                family: family
+            });
+        }
+        
+        family.members.forEach(m => { 
+            if(m.toLowerCase().includes(query)) {
+                results.push({
+                    type: 'Member', 
+                    email: m, 
+                    familyId: family.id,
+                    family: family
+                });
+            }
+        });
+    });
+    
+    searchResults.innerHTML = '';
+    
+    if(results.length > 0) {
+        results.forEach(result => {
+            const item = document.createElement('div');
+            item.className = 'p-3 border-bottom';
+            item.style.cursor = 'pointer';
+            
+            const startDate = new Date(result.family.startDate);
+            const endDate = new Date(result.family.endDate);
+            const now = new Date();
+            let statusClass = 'active-status';
+            
+            if(now > endDate) statusClass = 'expired-status';
+            else if((endDate - now) < 7 * 24 * 60 * 60 * 1000) statusClass = 'soon-expire';
+            
+            item.innerHTML = `
+                <div class="fw-bold">${result.email}</div>
+                <div class="small">${result.type} · <span class="status-badge ${statusClass}">${result.family.managerEmail}</span></div>
+                <div class="small text-muted">Expires: ${formatDate(endDate)}</div>
+            `;
+            
+            item.addEventListener('click', function() {
+                const card = document.querySelector(`.card[data-id="${result.familyId}"]`);
+                if(card) { 
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+                    card.classList.add('highlight-card'); 
+                    setTimeout(() => {
+                        card.classList.remove('highlight-card');
+                    }, 2000);
+                }
+                searchInput.value = ''; 
+                searchResults.style.display = 'none';
+            });
+            
+            searchResults.appendChild(item);
+        });
+        searchResults.style.display = 'block';
+    } else {
+        searchResults.innerHTML = '<div class="p-3 text-center">No results found</div>';
+        searchResults.style.display = 'block';
+    }
+});
+
+// Close search
+document.addEventListener('click', function(e) {
+    if(!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+        searchResults.style.display = 'none';
+    }
+});
+
+// Export
+exportBtn.addEventListener('click', function() {
+    const dataStr = JSON.stringify(families, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    const link = document.createElement('a');
+    link.setAttribute('href', dataUri);
+    link.setAttribute('download', 'families.json');
+    link.click();
+});
+
+// Import
+importBtn.addEventListener('click', () => importFile.click());
+importFile.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importedData = JSON.parse(e.target.result);
+            if(Array.isArray(importedData)) {
+                if(confirm(`Are you sure you want to import ${importedData.length} family groups? This will replace your current data.`)) {
+                    families = importedData;
+                    localStorage.setItem('families', JSON.stringify(families));
+                    renderFamilyList();
+                    alert('Data imported successfully!');
+                }
+            } else {
+                throw new Error('Invalid data format');
+            }
+        } catch(err) {
+            alert('Import failed: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    importFile.value = '';
+});
+
+// Format date for display
+function formatDate(date) {
+    return new Intl.DateTimeFormat('en-GB', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(date);
+}
+
+// Add input validation events
+document.getElementById('managerEmail').addEventListener('blur', validateManagerEmail);
+document.getElementById('startDate').addEventListener('change', validateDates);
+document.getElementById('endDate').addEventListener('change', validateDates);
+
+// Initial render
+renderFamilyList();
+});
+</script>
+</body>
+</html>
